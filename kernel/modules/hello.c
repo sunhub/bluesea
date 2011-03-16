@@ -1,12 +1,13 @@
 #include <linux/init.h>
 #include <linux/module.h>
 #include <linux/moduleparam.h>
+#include <linux/stat.h>
 
 MODULE_LICENSE("Dual BSD/GPL");
 
 static char *whom = "world";
 static int howmany = 1;
-module_param(whom, charp, 0);
+module_param(whom, charp, S_IRUGO|S_IWUSR);
 module_param(howmany, int, 0);
 
 static int hello_init(void)

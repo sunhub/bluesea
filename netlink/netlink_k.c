@@ -40,7 +40,7 @@ void sendnlmsg(char *message)
     memcpy(NLMSG_DATA(nlh),message,slen+1);
     printk("my_net_link:send message to process(%u)'%s'.\n", &pid, (char *)NLMSG_DATA(nlh));
 
-    netlink_unicast(nl_sk,skb_1,pid+1,MSG_DONTWAIT);
+    netlink_unicast(nl_sk,skb_1,pid,MSG_DONTWAIT);
 
 }
 

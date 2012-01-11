@@ -63,11 +63,9 @@ void sendnlmsg(void * msg)
 int stringlength(char *s)
 {
     int slen = 0;
-
     for(; *s; s++){
         slen++;
     }
-
     return slen;
 }
 
@@ -100,8 +98,6 @@ void nl_data_ready(struct sk_buff *__skb)
 // Initialize netlink
 int netlink_init(void)
 {
-
-
     nl_sk = netlink_kernel_create(&init_net, NETLINK_TEST, 1,
                                  nl_data_ready, NULL, THIS_MODULE);
 

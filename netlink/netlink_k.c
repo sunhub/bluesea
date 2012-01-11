@@ -5,18 +5,32 @@
 #include <linux/types.h>
 #include <net/sock.h>
 #include <net/netlink.h>
+#include <linux/workqueue.h>
 
 #define NETLINK_TEST 25
 #define MAX_MSGSIZE 1024
 int stringlength(char *s);
-void sendnlmsg(char * message);
 u32 pid;
+
 int err;
 struct sock *nl_sk = NULL;
 int flag = 0;
+static char * msgtouser = "I am from kernel!";
 
-void sendnlmsg(char *message)
+void sendnlmsg (void * msg);
+
+struct msg_work{
+	char * msg;
+	struct delayed_work work;
+};
+
+struct msg_work send_work;
+
+void sendnlmsg(void * msg)
 {
+    struct delayed_work * l_delayed_work = (struct delayed_work *) msg;
+    struct msg_work * l_send_work = container_of(l_delayed_work, struct msg_work, work);
+    char * message = l_send_work->msg;
     struct sk_buff *skb_1;
     struct nlmsghdr *nlh;
     int len = NLMSG_SPACE(MAX_MSGSIZE);
@@ -36,18 +50,19 @@ void sendnlmsg(char *message)
     NETLINK_CB(skb_1).pid = 0;
     NETLINK_CB(skb_1).dst_group = 0;
 
-     message[slen]= '\0';
+    message[slen]= '\0';
     memcpy(NLMSG_DATA(nlh),message,slen+1);
-    printk("my_net_link:send message to process(%u)'%s'.\n", &pid, (char *)NLMSG_DATA(nlh));
+    printk("my_net_link:send message to process(%u)'%s'.\n", pid, (char *)NLMSG_DATA(nlh));
 
-    netlink_unicast(nl_sk,skb_1,pid,MSG_DONTWAIT);
+    netlink_unicast(nl_sk, skb_1, pid, MSG_DONTWAIT);
+
+    schedule_delayed_work(&(send_work.work), 3 * HZ);
 
 }
 
 int stringlength(char *s)
 {
     int slen = 0;
-
 
     for(; *s; s++){
         slen++;
@@ -57,34 +72,32 @@ int stringlength(char *s)
 }
 
 void nl_data_ready(struct sk_buff *__skb)
- {
-     struct sk_buff *skb;
-     struct nlmsghdr *nlh;
-     char str[100];
-    struct completion cmpl;
-    int i=10;
-     skb = skb_get (__skb);
-     if(skb->len >= NLMSG_SPACE(0))
-     {
-         nlh = nlmsg_hdr(skb);
-
-         memcpy(str, NLMSG_DATA(nlh), sizeof(str));
-             pid = nlh->nlmsg_pid;
-           printk("Message received from process(%u):%s\n", &pid, str) ;
-    while(i--)
+{
+    struct sk_buff *skb;
+    struct nlmsghdr *nlh;
+    char str[100];
+    //struct completion cmpl;
+    skb = skb_get (__skb);
+    if(skb->len >= NLMSG_SPACE(0))
     {
-        init_completion(&cmpl);
-     wait_for_completion_timeout(&cmpl,3 * HZ);
-        sendnlmsg("I am from kernel!");
-    }
-        flag = 1;
-         kfree_skb(skb);
-    }
+        nlh = nlmsg_hdr(skb);
 
- }
+        memcpy(str, NLMSG_DATA(nlh), sizeof(str));
+        pid = nlh->nlmsg_pid;
+        printk("Message received from process(%u):%s\n", pid, str) ;
+        /*while(i--)
+        {
+            init_completion(&cmpl);
+            wait_for_completion_timeout(&cmpl,3 * HZ);
+            sendnlmsg("I am from kernel!");
+        }*/
+	schedule_delayed_work(&(send_work.work), 3 * HZ);
+        flag = 1;
+        kfree_skb(skb);
+    }
+}
 
 // Initialize netlink
-
 int netlink_init(void)
 {
 
@@ -96,6 +109,9 @@ int netlink_init(void)
         printk(KERN_ERR "my_net_link: create netlink socket error.\n");
         return 1;
     }
+    send_work.msg = msgtouser;
+
+    INIT_DELAYED_WORK(&(send_work.work), sendnlmsg);
 
     printk("my_net_link_3: create netlink socket ok.\n");
 
